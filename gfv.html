@@ -169,8 +169,7 @@
 
             // Set canvas dimensions (responsive)
             const canvasWidth = Math.min(window.innerWidth * 0.85, 950); // Increased width for more fret space
-            // MODIFIED: Decreased height for narrower string space
-            const canvasHeight = Math.min(window.innerHeight * 0.3, 150);
+            const canvasHeight = Math.min(window.innerHeight * 0.5, 250); // Decreased height for narrower string space
             canvas.width = canvasWidth;
             canvas.height = canvasHeight;
 
@@ -444,7 +443,7 @@
             // Handle window resize to make canvas responsive
             window.addEventListener('resize', () => {
                 const newCanvasWidth = Math.min(window.innerWidth * 0.85, 950);
-                const newCanvasHeight = Math.min(window.innerHeight * 0.3, 150); // Updated for narrower
+                const newCanvasHeight = Math.min(window.innerHeight * 0.5, 250);
                 canvas.width = newCanvasWidth;
                 canvas.height = newCanvasHeight;
                 // Redraw content after resize
