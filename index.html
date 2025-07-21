@@ -64,64 +64,10 @@
             border-color: #4CAF50;
             box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3);
         }
-        .button {
-            padding: 10px 20px;
-            background-color: #4CAF50; /* Green */
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            transition: background-color 0.3s ease;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-        }
-        .button:hover {
-            background-color: #45a049;
-        }
-        .button:active {
-            background-color: #3e8e41;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-            transform: translateY(1px);
-        }
-        .button.clear {
-            background-color: #dc3545; /* Red */
-        }
-        .button.clear:hover {
-            background-color: #c82333;
-        }
-        .button.visualize {
-            background-color: #007bff; /* Blue */
-        }
-        .button.visualize:hover {
-            background-color: #0056b3;
-        }
-        .note-legend {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #e0e0e0;
-            border-radius: 8px;
-            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
-            justify-content: center;
-        }
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 14px;
-        }
-        .legend-color-box {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            border: 1px solid #555;
-        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
-    <h1 class="text-3xl font-bold mb-6 text-center">Guitar Fretboard Visualizer</h1>
+    <!-- Removed the h1 title tag -->
 
     <div class="controls">
         <div class="control-group">
@@ -146,21 +92,12 @@
                 <option value="Pentatonic">Pentatonic</option>
                 <option value="Blues">Blues</option>
                 <option value="SevenNote">7-Note Scale</option>
+                <option value="AllNotes">All Notes</option>
             </select>
         </div>
-
-        <button id="visualizeScaleButton" class="button visualize">Visualize Scale</button>
-        <button id="showAllNotesButton" class="button">Show All Notes</button>
-        <button id="drawNeckButton" class="button">Draw Neck</button>
-        <button id="clearButton" class="button clear">Clear</button>
     </div>
 
     <canvas id="guitarCanvas"></canvas>
-
-    <div class="note-legend">
-        <h2 class="w-full text-center text-lg font-semibold mb-2">Note Color Legend</h2>
-        <!-- Legend items will be populated by JavaScript -->
-    </div>
 
     <script>
         window.onload = function() {
@@ -169,8 +106,7 @@
 
             // Set canvas dimensions (responsive)
             const canvasWidth = Math.min(window.innerWidth * 0.85, 950); // Increased width for more fret space
-            // MODIFIED: Decreased height for narrower string space
-            const canvasHeight = Math.min(window.innerHeight * 0.3, 150);
+            const canvasHeight = Math.min(window.innerHeight * 0.3, 150); // Decreased height for narrower string space
             canvas.width = canvasWidth;
             canvas.height = canvasHeight;
 
@@ -212,48 +148,31 @@
             });
             keySelect.value = 'C'; // Default to C
 
-            // Generate 12 distinct HSL colors for each note
-            const noteColors = {};
-            const numNotesInOctave = notes.length; // 12 notes
-            const hueStep = 360 / numNotesInOctave; // Divide 360 degrees by 12 notes
+            // Global variable to store dynamically generated note colors
+            let currentNoteColors = {};
 
-            // Map notes to their base index (0-11) for color calculation
-            const noteIndexMap = {};
-            notes.forEach((note, index) => {
-                noteIndexMap[note] = index;
-            });
+            // Function to generate 12 distinct HSL colors for each note,
+            // with the specified root note appearing as red (hue 0)
+            function generateDynamicNoteColors(rootNote) {
+                const dynamicColors = {};
+                const numNotesInOctave = notes.length; // 12 notes
+                const hueStep = 360 / numNotesInOctave; // Divide 360 degrees by 12 notes
 
-            // Function to get HSL color for a note, ensuring 'C' is red-ish (hue 0)
-            function getNoteColor(noteName) {
-                const baseHue = 0; // Starting hue for 'C' (red)
-                const noteIdx = noteIndexMap[noteName];
-                const hue = (baseHue + (noteIdx * hueStep)) % 360;
-                const saturation = 80; // Keep saturation high for vibrant colors
-                const lightness = 50;  // Keep lightness in the middle for good visibility
-                return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-            }
+                const rootNoteIndex = notes.indexOf(rootNote);
 
-            // Populate noteColors object
-            for (const note of notes) {
-                noteColors[note] = getNoteColor(note);
-            }
-
-            // Populate the note legend
-            const noteLegendContainer = document.querySelector('.note-legend');
-            function populateNoteLegend() {
-                noteLegendContainer.innerHTML = '<h2 class="w-full text-center text-lg font-semibold mb-2">Note Color Legend</h2>';
-                for (const note of notes) {
-                    const legendItem = document.createElement('div');
-                    legendItem.classList.add('legend-item');
-                    legendItem.innerHTML = `
-                        <div class="legend-color-box" style="background-color: ${noteColors[note]};"></div>
-                        <span>${note}</span>
-                    `;
-                    noteLegendContainer.appendChild(legendItem);
+                for (let i = 0; i < numNotesInOctave; i++) {
+                    const noteName = notes[i];
+                    // Calculate the relative index from the root note
+                    // Add numNotesInOctave to handle negative results from subtraction
+                    const relativeIndex = (i - rootNoteIndex + numNotesInOctave) % numNotesInOctave;
+                    
+                    const hue = (relativeIndex * hueStep); // Hue starts from 0 (red) for the root
+                    const saturation = 80; // Keep saturation high for vibrant colors
+                    const lightness = 50;  // Keep lightness in the middle for good visibility
+                    dynamicColors[noteName] = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
                 }
+                return dynamicColors;
             }
-            populateNoteLegend();
-
 
             // Function to draw the guitar neck
             function drawGuitarNeck() {
@@ -340,7 +259,8 @@
 
                 ctx.beginPath();
                 ctx.arc(fretX, stringY, noteRadius, 0, Math.PI * 2);
-                ctx.fillStyle = noteColors[noteName] || '#000'; // Default to black if color not found
+                // Use the dynamically generated colors
+                ctx.fillStyle = currentNoteColors[noteName] || '#000'; // Default to black if color not found
                 ctx.fill();
                 ctx.strokeStyle = '#333';
                 ctx.lineWidth = 1.5;
@@ -379,12 +299,20 @@
                 'SevenNote': {
                     'Major': [0, 2, 4, 5, 7, 9, 11], // Major Scale
                     'Minor': [0, 2, 3, 5, 7, 8, 10]  // Natural Minor Scale
+                },
+                'AllNotes': { // Custom type to show all notes
+                    'Major': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], // All 12 chromatic notes
+                    'Minor': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] // Same for minor (all notes)
                 }
             };
 
             // Function to get the notes for a selected scale/triad
             function getScaleNotes(rootNote, scaleType, majorMinor) {
                 const rootIndex = notes.indexOf(rootNote);
+                // For "AllNotes", the majorMinor distinction doesn't apply, just return all notes
+                if (scaleType === 'AllNotes') {
+                    return notes;
+                }
                 const intervals = scaleIntervals[scaleType][majorMinor];
                 const scaleNotes = [];
 
@@ -395,12 +323,16 @@
                 return scaleNotes;
             }
 
-            // New function to visualize the selected scale
+            // Function to visualize the selected scale
             function visualizeSelectedScale() {
-                drawGuitarNeck(); // Redraw neck first
+                drawGuitarNeck(); // Always redraw neck first to clear previous notes
+
                 const selectedKey = keySelect.value;
                 const selectedMajorMinor = majorMinorSelect.value;
                 const selectedScaleType = scaleTypeSelect.value;
+
+                // Generate note colors based on the selected root key
+                currentNoteColors = generateDynamicNoteColors(selectedKey);
 
                 const notesToHighlight = getScaleNotes(selectedKey, selectedScaleType, selectedMajorMinor);
 
@@ -414,44 +346,22 @@
                 }
             }
 
-            // Event Listeners for buttons
-            document.getElementById('drawNeckButton').addEventListener('click', drawGuitarNeck);
-            document.getElementById('clearButton').addEventListener('click', () => {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-            });
-
-            document.getElementById('showAllNotesButton').addEventListener('click', () => {
-                drawGuitarNeck(); // Redraw neck first
-                for (let s = 0; s < numStrings; s++) {
-                    for (let f = 0; f <= numFrets; f++) {
-                        const note = getNoteAtFret(s, f);
-                        drawNote(s, f, note);
-                    }
-                }
-            });
-
+            // Event Listeners for dropdowns (automatically redraw on change)
             keySelect.addEventListener('change', visualizeSelectedScale);
             majorMinorSelect.addEventListener('change', visualizeSelectedScale);
             scaleTypeSelect.addEventListener('change', visualizeSelectedScale);
 
-            // Keep the button click listener for explicit action
-            document.getElementById('visualizeScaleButton').addEventListener('click', visualizeSelectedScale);
-
-
             // Initial draw when the page loads
-            drawGuitarNeck();
+            visualizeSelectedScale();
 
             // Handle window resize to make canvas responsive
             window.addEventListener('resize', () => {
                 const newCanvasWidth = Math.min(window.innerWidth * 0.85, 950);
-                const newCanvasHeight = Math.min(window.innerHeight * 0.3, 150); // Updated for narrower
+                const newCanvasHeight = Math.min(window.innerHeight * 0.3, 150);
                 canvas.width = newCanvasWidth;
                 canvas.height = newCanvasHeight;
                 // Redraw content after resize
-                drawGuitarNeck();
-                // If notes were displayed, re-draw them after resize
-                // For simplicity, I'm not implementing full state restoration on resize,
-                // but you can click the buttons again to re-display notes.
+                visualizeSelectedScale(); // Re-visualize the current scale on resize
             });
         };
     </script>
