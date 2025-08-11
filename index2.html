@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guitar Fretboard Visualizer</title>
+    <!-- Tailwind CSS CDN for basic styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the canvas and overall layout */
+        body {
+            font-family: "Inter", sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            padding: 20px;
+        }
+        canvas {
+            background-color: #fff;
+            border: 2px solid #333;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            max-width: 100%; /* Ensure canvas is responsive */
+            height: auto; /* Maintain aspect ratio */
+            margin-bottom: 20px;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px; /* Increased gap for better spacing */
+            margin-bottom: 20px;
+            justify-content: center;
+            align-items: center; /* Align items vertically */
+            padding: 10px;
+            background-color: #e0e0e0;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 5px;
+        }
+        .control-group label {
+            font-weight: bold;
+            font-size: 14px;
+            color: #333;
+        }
+        .control-group select {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+            background-color: white;
+            cursor: pointer;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        .control-group select:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <!-- Removed the h1 title tag -->
+
+    <div class="controls">
+        <div class="control-group">
+            <label for="keySelect">Key:</label>
+            <select id="keySelect">
+                <!-- Options populated by JavaScript -->
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label for="majorMinorSelect">Mode:</label>
+            <select id="majorMinorSelect">
+                <option value="Major">Major</option>
+                <option value="Minor">Minor</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label for="scaleTypeSelect">Type:</label>
+            <select id="scaleTypeSelect">
+                <option value="Triad">Triad</option>
+                <option value="Pentatonic">Pentatonic</option>
+                <option value="Blues">Blues</option>
+                <option value="SevenNote">7-Note Scale</option>
+                <option value="AllNotes">All Notes</option>
+            </select>
+        </div>
+    </div>
+
+    <canvas id="guitarCanvas"></canvas>
+
+    <script>
+        window.onload = function() {
+            const canvas = document.getElementById('guitarCanvas');
+            const ctx = canvas.getContext('2d');
+
+            // Set canvas dimensions (responsive)
+            const canvasWidth = Math.min(window.innerWidth * 0.85, 950); // Increased width for more fret space
+            const canvasHeight = Math.min(window.innerHeight * 0.3, 150); // Decreased height for narrower string space
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+
+            // Fretboard parameters
+            const numFrets = 17;
+            const numStrings = 6; // Standard guitar strings
+            const fretboardPadding = 20; // Padding around the fretboard
+            const nutWidth = 10; // Width of the nut
+
+            // Calculate dimensions based on canvas size
+            const availableWidth = canvas.width - (fretboardPadding * 2) - nutWidth;
+            const fretWidths = []; // Fret widths (get narrower as they go up)
+
+            // Even Fret Spacing
+            const evenFretWidth = availableWidth / numFrets;
+            for (let i = 0; i < numFrets; i++) {
+                fretWidths.push(evenFretWidth);
+            }
+
+            // Calculate string spacing to distribute strings evenly from top to bottom padding
+            const stringSpacing = (canvas.height - (fretboardPadding * 2)) / (numStrings - 1);
+
+            // Standard EADGBe tuning (from low E to high E)
+            // The order here is from lowest pitch to highest pitch, as seen on a guitar.
+            const standardTuning = ['E', 'A', 'D', 'G', 'B', 'E'];
+            const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+            // Get references to dropdowns
+            const keySelect = document.getElementById('keySelect');
+            const majorMinorSelect = document.getElementById('majorMinorSelect');
+            const scaleTypeSelect = document.getElementById('scaleTypeSelect');
+
+            // Populate Key Select dropdown
+            notes.forEach(note => {
+                const option = document.createElement('option');
+                option.value = note;
+                option.textContent = note;
+                keySelect.appendChild(option);
+            });
+            keySelect.value = 'C'; // Default to C
+
+            // Global variable to store dynamically generated note colors
+            let currentNoteColors = {};
+
+            // Function to generate 12 distinct HSL colors for each note,
+            // with the specified root note appearing as red (hue 0)
+            function generateDynamicNoteColors(rootNote) {
+                const dynamicColors = {};
+                const numNotesInOctave = notes.length; // 12 notes
+                const hueStep = 360 / numNotesInOctave; // Divide 360 degrees by 12 notes
+
+                const rootNoteIndex = notes.indexOf(rootNote);
+
+                for (let i = 0; i < numNotesInOctave; i++) {
+                    const noteName = notes[i];
+                    // Calculate the relative index from the root note
+                    // Add numNotesInOctave to handle negative results from subtraction
+                    const relativeIndex = (i - rootNoteIndex + numNotesInOctave) % numNotesInOctave;
+                    
+                    const hue = (relativeIndex * hueStep); // Hue starts from 0 (red) for the root
+                    const saturation = 80; // Keep saturation high for vibrant colors
+                    const lightness = 50;  // Keep lightness in the middle for good visibility
+                    dynamicColors[noteName] = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+                }
+                return dynamicColors;
+            }
+
+            // Function to draw the guitar neck
+            function drawGuitarNeck() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
+
+                // Draw fretboard background (optional, but good for visual separation)
+                ctx.fillStyle = '#8B4513'; // SaddleBrown
+                ctx.fillRect(fretboardPadding, fretboardPadding, canvas.width - (fretboardPadding * 2), canvas.height - (fretboardPadding * 2));
+
+                // Draw nut
+                ctx.fillStyle = '#555'; // Dark gray
+                ctx.fillRect(fretboardPadding, fretboardPadding, nutWidth, canvas.height - (fretboardPadding * 2));
+
+                // Draw frets
+                ctx.strokeStyle = '#BBB'; // Light gray for frets
+                ctx.lineWidth = 2;
+                let xPos = fretboardPadding + nutWidth;
+                for (let i = 0; i < numFrets; i++) {
+                    xPos += fretWidths[i];
+                    ctx.beginPath();
+                    ctx.moveTo(xPos, fretboardPadding);
+                    ctx.lineTo(xPos, canvas.height - fretboardPadding);
+                    ctx.stroke();
+                }
+
+                // Draw strings
+                ctx.strokeStyle = '#777'; // Gray for strings
+                ctx.lineWidth = 1.5;
+                for (let i = 0; i < numStrings; i++) {
+                    // Calculate yPos to reverse the string order (low E at bottom, high E at top)
+                    const reversedStringIndex = numStrings - 1 - i;
+                    const yPos = fretboardPadding + (reversedStringIndex * stringSpacing);
+                    ctx.beginPath();
+                    ctx.moveTo(fretboardPadding, yPos);
+                    ctx.lineTo(canvas.width - fretboardPadding, yPos);
+                    ctx.stroke();
+                }
+
+                // Draw fret markers (dots)
+                ctx.fillStyle = '#AAA'; // Silver
+                const markerRadius = 6;
+                const markerFrets = [3, 5, 7, 9, 15];
+                const doubleMarkerFret = 12;
+
+                markerFrets.forEach(fretNum => {
+                    if (fretNum <= numFrets) {
+                        const fretCenter = fretboardPadding + nutWidth + fretWidths.slice(0, fretNum - 1).reduce((a, b) => a + b, 0) + (fretWidths[fretNum - 1] / 2);
+                        ctx.beginPath();
+                        ctx.arc(fretCenter, canvas.height / 2, markerRadius, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                });
+
+                // Double markers for 12th fret
+                if (doubleMarkerFret <= numFrets) {
+                    const fretCenter = fretboardPadding + nutWidth + fretWidths.slice(0, doubleMarkerFret - 1).reduce((a, b) => a + b, 0) + (fretWidths[doubleMarkerFret - 1] / 2);
+                    ctx.beginPath();
+                    ctx.arc(fretCenter, canvas.height / 2 - stringSpacing, markerRadius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(fretCenter, canvas.height / 2 + stringSpacing, markerRadius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // Function to draw a single note on the fretboard
+            function drawNote(stringIndex, fretNumber, noteName) {
+                if (fretNumber < 0 || fretNumber > numFrets) return; // Ensure fret is within drawn range
+
+                const noteRadius = 12;
+                // Calculate yPos to reverse the string order (low E at bottom, high E at top)
+                const reversedStringIndex = numStrings - 1 - stringIndex;
+                const stringY = fretboardPadding + (reversedStringIndex * stringSpacing);
+
+                let fretX;
+                if (fretNumber === 0) { // Open string - draw to the left of the nut
+                    // Position the note in the middle of the padding area to the left of the nut
+                    fretX = fretboardPadding / 2;
+                } else {
+                    // Calculate center of the fret
+                    const prevFretsWidth = fretWidths.slice(0, fretNumber - 1).reduce((a, b) => a + b, 0);
+                    fretX = fretboardPadding + nutWidth + prevFretsWidth + (fretWidths[fretNumber - 1] / 2);
+                }
+
+                ctx.beginPath();
+                ctx.arc(fretX, stringY, noteRadius, 0, Math.PI * 2);
+                // Use the dynamically generated colors
+                ctx.fillStyle = currentNoteColors[noteName] || '#000'; // Default to black if color not found
+                ctx.fill();
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                // Draw note name inside the circle
+                ctx.fillStyle = '#FFF'; // White text
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(noteName, fretX, stringY);
+            }
+
+            // Function to get the note name at a specific string and fret
+            function getNoteAtFret(stringIndex, fretNumber) {
+                const openStringNote = standardTuning[stringIndex];
+                const openStringNoteIndex = notes.indexOf(openStringNote);
+                const targetNoteIndex = (openStringNoteIndex + fretNumber) % notes.length;
+                return notes[targetNoteIndex];
+            }
+
+            // Define scale/triad intervals (semitones from root)
+            const scaleIntervals = {
+                'Triad': {
+                    'Major': [0, 4, 7], // Root, Major 3rd, Perfect 5th
+                    'Minor': [0, 3, 7]  // Root, Minor 3rd, Perfect 5th
+                },
+                'Pentatonic': {
+                    'Major': [0, 2, 4, 7, 9], // Root, M2, M3, P5, M6
+                    'Minor': [0, 3, 5, 7, 10] // Root, m3, P4, P5, m7
+                },
+                'Blues': { // Common minor blues scale
+                    'Major': [0, 2, 3, 4, 7, 9], // Major Blues: R, M2, m3, M3, P5, M6 (simplified common form)
+                    'Minor': [0, 3, 5, 6, 7, 10] // Minor Blues: R, m3, P4, dim5, P5, m7
+                },
+                'SevenNote': {
+                    'Major': [0, 2, 4, 5, 7, 9, 11], // Major Scale
+                    'Minor': [0, 2, 3, 5, 7, 8, 10]  // Natural Minor Scale
+                },
+                'AllNotes': { // Custom type to show all notes
+                    'Major': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], // All 12 chromatic notes
+                    'Minor': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] // Same for minor (all notes)
+                }
+            };
+
+            // Function to get the notes for a selected scale/triad
+            function getScaleNotes(rootNote, scaleType, majorMinor) {
+                const rootIndex = notes.indexOf(rootNote);
+                // For "AllNotes", the majorMinor distinction doesn't apply, just return all notes
+                if (scaleType === 'AllNotes') {
+                    return notes;
+                }
+                const intervals = scaleIntervals[scaleType][majorMinor];
+                const scaleNotes = [];
+
+                intervals.forEach(interval => {
+                    const noteIndex = (rootIndex + interval) % notes.length;
+                    scaleNotes.push(notes[noteIndex]);
+                });
+                return scaleNotes;
+            }
+
+            // Function to visualize the selected scale
+            function visualizeSelectedScale() {
+                drawGuitarNeck(); // Always redraw neck first to clear previous notes
+
+                const selectedKey = keySelect.value;
+                const selectedMajorMinor = majorMinorSelect.value;
+                const selectedScaleType = scaleTypeSelect.value;
+
+                // Generate note colors based on the selected root key
+                currentNoteColors = generateDynamicNoteColors(selectedKey);
+
+                const notesToHighlight = getScaleNotes(selectedKey, selectedScaleType, selectedMajorMinor);
+
+                for (let s = 0; s < numStrings; s++) {
+                    for (let f = 0; f <= numFrets; f++) {
+                        const note = getNoteAtFret(s, f);
+                        if (notesToHighlight.includes(note)) {
+                            drawNote(s, f, note);
+                        }
+                    }
+                }
+            }
+
+            // Event Listeners for dropdowns (automatically redraw on change)
+            keySelect.addEventListener('change', visualizeSelectedScale);
+            majorMinorSelect.addEventListener('change', visualizeSelectedScale);
+            scaleTypeSelect.addEventListener('change', visualizeSelectedScale);
+
+            // Initial draw when the page loads
+            visualizeSelectedScale();
+
+            // Handle window resize to make canvas responsive
+            window.addEventListener('resize', () => {
+                const newCanvasWidth = Math.min(window.innerWidth * 0.85, 950);
+                const newCanvasHeight = Math.min(window.innerHeight * 0.3, 150);
+                canvas.width = newCanvasWidth;
+                canvas.height = newCanvasHeight;
+                // Redraw content after resize
+                visualizeSelectedScale(); // Re-visualize the current scale on resize
+            });
+        };
+    </script>
+</body>
+</html>
